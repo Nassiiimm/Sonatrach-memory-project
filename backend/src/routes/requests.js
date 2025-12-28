@@ -10,6 +10,7 @@ const { auth, requireRole } = require('../middleware/auth');
 const STATUS = require('../constants/status');
 const { generateBCPdf, generateBCNumber } = require('../utils/pdfGenerator');
 const { storePdfBuffer, getPdfById } = require('../utils/gridfs');
+const { generateBCExcel } = require('../utils/excelExport');
 
 const router = express.Router();
 
@@ -154,6 +155,120 @@ router.post('/', auth, requireRole(['EMPLOYE']), upload.array('attachments'), as
 
   res.status(201).json(request);
 });
+
+// ============ ROUTES FINANCE (doivent être AVANT les routes /:id) ============
+
+// Route pour les statistiques Finance
+router.get('/finance/stats', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) => {
+  try {
+    const stats = await Request.aggregate([
+      { $match: { status: STATUS.RESERVEE } },
+      {
+        $group: {
+          _id: '$finance.paymentStatus',
+          count: { $sum: 1 },
+          total: { $sum: '$finance.total' }
+        }
+      }
+    ]);
+
+    const result = {
+      totalReservations: 0,
+      totalAmount: 0,
+      paid: { count: 0, amount: 0 },
+      unpaid: { count: 0, amount: 0 }
+    };
+
+    stats.forEach(s => {
+      result.totalReservations += s.count;
+      result.totalAmount += s.total || 0;
+      if (s._id === 'PAYE') {
+        result.paid = { count: s.count, amount: s.total || 0 };
+      } else {
+        result.unpaid = { count: s.count, amount: s.total || 0 };
+      }
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Erreur stats finance:', err);
+    res.status(500).json({ message: 'Erreur lors du calcul des statistiques' });
+  }
+});
+
+// Route pour exporter les BC en Excel
+router.get('/finance/export-excel', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) => {
+  try {
+    const { paymentStatus, region, search, startDate, endDate } = req.query;
+
+    // Construction du filtre
+    const filter = { status: STATUS.RESERVEE };
+
+    if (paymentStatus && paymentStatus !== 'ALL') {
+      filter['finance.paymentStatus'] = paymentStatus;
+    }
+
+    if (region && region !== 'ALL') {
+      filter.regionAcronym = region;
+    }
+
+    if (search) {
+      filter.$or = [
+        { 'finance.bcNumber': { $regex: search, $options: 'i' } },
+        { destination: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (startDate || endDate) {
+      filter['finance.bcGeneratedAt'] = {};
+      if (startDate) {
+        filter['finance.bcGeneratedAt'].$gte = new Date(startDate);
+      }
+      if (endDate) {
+        filter['finance.bcGeneratedAt'].$lte = new Date(endDate);
+      }
+    }
+
+    // Récupération des réservations
+    const reservations = await Request.find(filter)
+      .populate('employee', 'name matricule department region regionAcronym')
+      .populate('relex.hotel')
+      .sort({ 'finance.bcGeneratedAt': -1 });
+
+    // Génération du fichier Excel
+    const excelBuffer = await generateBCExcel(reservations, {
+      paymentStatus,
+      region
+    });
+
+    // Nom du fichier avec date
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `BC_Sonatrach_${dateStr}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', excelBuffer.length);
+    res.send(excelBuffer);
+
+    // Audit de l'export
+    await Audit.create({
+      action: 'EXPORT_BC_EXCEL',
+      entity: 'Request',
+      entityId: null,
+      by: req.user._id,
+      metadata: {
+        count: reservations.length,
+        filters: { paymentStatus, region, search, startDate, endDate }
+      }
+    });
+
+  } catch (err) {
+    console.error('Erreur export Excel BC:', err);
+    res.status(500).json({ message: 'Erreur lors de l\'export Excel' });
+  }
+});
+
+// ============ ROUTES AVEC :id ============
 
 // Manager: libère ou refuse l'employé, ne réserve rien
 router.patch('/:id/manager', auth, requireRole(['MANAGER']), async (req, res) => {
@@ -423,44 +538,6 @@ router.patch('/:id/payment', auth, requireRole(['FINANCE', 'ADMIN']), async (req
   } catch (err) {
     console.error('Erreur mise à jour paiement:', err);
     res.status(500).json({ message: 'Erreur lors de la mise à jour du paiement' });
-  }
-});
-
-// Route pour les statistiques Finance
-router.get('/finance/stats', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) => {
-  try {
-    const stats = await Request.aggregate([
-      { $match: { status: STATUS.RESERVEE } },
-      {
-        $group: {
-          _id: '$finance.paymentStatus',
-          count: { $sum: 1 },
-          total: { $sum: '$finance.total' }
-        }
-      }
-    ]);
-
-    const result = {
-      totalReservations: 0,
-      totalAmount: 0,
-      paid: { count: 0, amount: 0 },
-      unpaid: { count: 0, amount: 0 }
-    };
-
-    stats.forEach(s => {
-      result.totalReservations += s.count;
-      result.totalAmount += s.total || 0;
-      if (s._id === 'PAYE') {
-        result.paid = { count: s.count, amount: s.total || 0 };
-      } else {
-        result.unpaid = { count: s.count, amount: s.total || 0 };
-      }
-    });
-
-    res.json(result);
-  } catch (err) {
-    console.error('Erreur stats finance:', err);
-    res.status(500).json({ message: 'Erreur lors du calcul des statistiques' });
   }
 });
 

@@ -168,6 +168,45 @@ export default function Finance() {
     }
   };
 
+  const [exporting, setExporting] = useState(false);
+
+  const exportBcExcel = async () => {
+    if (!filteredReservations.length) {
+      alert('Aucun BC a exporter.');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (bcPaymentFilter !== 'ALL') params.append('paymentStatus', bcPaymentFilter);
+      if (bcRegionFilter !== 'ALL') params.append('region', bcRegionFilter);
+      if (bcSearch) params.append('search', bcSearch);
+
+      const response = await axios.get(
+        `${API}/api/requests/finance/export-excel?${params.toString()}`,
+        {
+          headers,
+          responseType: 'blob'
+        }
+      );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `BC_Sonatrach_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erreur export Excel:', err);
+      alert('Erreur lors de l\'export Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const exportBcCsv = () => {
     if (!filteredReservations.length) {
       alert('Aucun BC a exporter.');
@@ -410,9 +449,19 @@ export default function Finance() {
                 <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
                   Liste des Bons de Commande
                 </div>
-                <button className="btn subtle" type="button" onClick={exportBcCsv}>
-                  Exporter CSV
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={exportBcExcel}
+                    disabled={exporting}
+                  >
+                    {exporting ? 'Export...' : 'Exporter Excel'}
+                  </button>
+                  <button className="btn subtle" type="button" onClick={exportBcCsv}>
+                    CSV
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) repeat(2, minmax(0,1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
