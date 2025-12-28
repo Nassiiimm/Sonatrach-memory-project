@@ -5,6 +5,9 @@ const requestSchema = new mongoose.Schema({
   // Employé principal
   employee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
+  // Région de la demande (copiée depuis l'employé à la création)
+  regionAcronym: { type: String },
+
   // 🔹 Réservation groupée
   participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 

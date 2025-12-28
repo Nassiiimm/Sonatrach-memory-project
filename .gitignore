@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files
+.env
+backend/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
+frontend/dist/
+
+# Uploaded files (keep structure)
+backend/files/*
+!backend/files/.gitkeep
+
+# Test coverage
+coverage/

@@ -57,14 +57,21 @@ router.get('/', auth, async (req, res) => {
       { city: { $regex: q, $options: 'i' } }
     ];
   }
+
+  // Filtrage par rôle
   if (req.user.role === 'EMPLOYE') {
+    // L'employé ne voit que ses propres demandes
     filter.employee = req.user._id;
+  } else if (req.user.role === 'MANAGER') {
+    // Le manager ne voit que les demandes de sa région
+    filter.regionAcronym = req.user.regionAcronym;
   }
+  // RELEX, FINANCE, ADMIN voient toutes les demandes
 
   const skip = (Number(page) - 1) * Number(limit);
   const [items, total] = await Promise.all([
     Request.find(filter)
-      .populate('employee', 'name department region')
+      .populate('employee', 'name matricule department region regionAcronym')
       .populate('relex.hotel')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -131,6 +138,7 @@ router.post('/', auth, requireRole(['EMPLOYE']), upload.array('attachments'), as
     participants: value.participants,
 
     employee: req.user._id,
+    regionAcronym: req.user.regionAcronym, // Copie de la région de l'employé
     attachments,
     status: STATUS.EN_ATTENTE_MANAGER
   });
@@ -152,6 +160,11 @@ router.patch('/:id/manager', auth, requireRole(['MANAGER']), async (req, res) =>
   const request = await Request.findById(req.params.id);
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
 
+  // Vérification que la demande appartient à la région du manager
+  if (request.regionAcronym !== req.user.regionAcronym) {
+    return res.status(403).json({ message: 'Vous ne pouvez valider que les demandes de votre région' });
+  }
+
   request.managerDecision = { approved, comment, at: new Date() };
 
   if (approved) {
@@ -166,7 +179,7 @@ router.patch('/:id/manager', auth, requireRole(['MANAGER']), async (req, res) =>
     entity: 'Request',
     entityId: request._id.toString(),
     by: req.user._id,
-    metadata: { comment }
+    metadata: { comment, regionAcronym: request.regionAcronym }
   });
 
   res.json(request);
@@ -266,7 +279,7 @@ router.patch('/:id/relex', auth, requireRole(['RELEX']), async (req, res) => {
     participantsCount: (request.participants || []).length + 1
   };
 
-  request.status = STATUS.EFFECTUEE;
+  request.status = STATUS.RESERVEE;
   await request.save();
 
   await Audit.create({

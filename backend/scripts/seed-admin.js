@@ -19,14 +19,14 @@ const User = require('../src/models/User');
 
     if (!user) {
       user = await User.create({
-        matricule,              // 🔹 OBLIGATOIRE
+        matricule,
         name: 'Admin Sonatrach',
         email,
-        password: '123456',     // sera hashé par ton modèle User
+        password: 'Admin@2024',
         role: 'ADMIN',
         department: 'DSI',
-        region: 'HOLDING'
-        // ajoute acronym / regionCode si ton User.js les utilise
+        region: 'Siège Alger',
+        regionAcronym: 'ALG'
       });
       console.log('Utilisateur admin créé :', email);
     } else {

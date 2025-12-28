@@ -10,198 +10,195 @@ const API = '';
 export default function Finance() {
   const { headers } = useAuth();
 
-  const [rows, setRows] = useState([]);
-  const [editingId, setEditingId] = useState(null);
-  const [currentRow, setCurrentRow] = useState(null);
-  const [paymentStatus, setPaymentStatus] = useState('NON_PAYE');
-  const [paymentDate, setPaymentDate] = useState('');
+  const [factures, setFactures] = useState([]);
+  const [hotels, setHotels] = useState([]);
+  const [stats, setStats] = useState({
+    enAttente: { count: 0, total: 0 },
+    validees: { count: 0, total: 0 },
+    payees: { count: 0, total: 0 },
+    rejetees: { count: 0, total: 0 }
+  });
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [hotelFilter, setHotelFilter] = useState('ALL');
 
-  const load = () =>
+  // Formulaire nouvelle facture
+  const [showForm, setShowForm] = useState(false);
+  const [factureForm, setFactureForm] = useState({
+    hotel: '',
+    numeroFacture: '',
+    dateFacture: '',
+    montant: '',
+    devise: 'DZD',
+    observations: ''
+  });
+
+  // Modal de traitement
+  const [editingFacture, setEditingFacture] = useState(null);
+  const [editStatut, setEditStatut] = useState('');
+  const [editObservations, setEditObservations] = useState('');
+  const [editNumeroBonPaiement, setEditNumeroBonPaiement] = useState('');
+
+  const loadFactures = () =>
     axios
-      .get(API + '/api/requests', { headers, params: { status: 'EFFECTUEE' } })
-      .then(({ data }) => setRows(data.data))
-      .catch(() => setRows([]));
+      .get(API + '/api/factures', { headers })
+      .then(({ data }) => setFactures(data.data || []))
+      .catch(() => setFactures([]));
+
+  const loadStats = () =>
+    axios
+      .get(API + '/api/factures/stats', { headers })
+      .then(({ data }) => setStats(data))
+      .catch(() => {});
+
+  const loadHotels = () =>
+    axios
+      .get(API + '/api/hotels', { headers })
+      .then(({ data }) => setHotels(data.data || data || []))
+      .catch(() => setHotels([]));
 
   useEffect(() => {
-    load();
+    loadFactures();
+    loadStats();
+    loadHotels();
   }, []);
 
-  const openModal = r => {
-    setEditingId(r._id);
-    setCurrentRow(r);
-    setPaymentStatus(r.finance?.paymentStatus || 'NON_PAYE');
-    setPaymentDate(
-      r.finance?.paymentDate
-        ? new Date(r.finance.paymentDate).toISOString().slice(0, 10)
-        : ''
-    );
-  };
-
-  const closeModal = () => {
-    setEditingId(null);
-    setCurrentRow(null);
-    setPaymentStatus('NON_PAYE');
-    setPaymentDate('');
-  };
-
-  const savePayment = async () => {
-    if (!editingId) return;
+  const createFacture = async (e) => {
+    e.preventDefault();
     try {
-      await axios.patch(
-        API + '/api/finance/' + editingId + '/validate',
-        {
-          paymentStatus,
-          paymentDate: paymentDate || null
-        },
-        { headers }
-      );
-      alert('Informations de paiement mises à jour.');
-      closeModal();
-      load();
-    } catch (e) {
-      alert(
-        e.response?.data?.message ||
-          'Erreur lors de la mise à jour du paiement'
-      );
+      await axios.post(API + '/api/factures', {
+        ...factureForm,
+        montant: Number(factureForm.montant)
+      }, { headers });
+      setFactureForm({
+        hotel: '',
+        numeroFacture: '',
+        dateFacture: '',
+        montant: '',
+        devise: 'DZD',
+        observations: ''
+      });
+      setShowForm(false);
+      loadFactures();
+      loadStats();
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Erreur lors de la création');
     }
   };
 
-  // 🔹 Télécharger le BC en PDF
-  const downloadBC = async (id, poNumber) => {
-    try {
-      const response = await axios.get(`${API}/api/requests/${id}/bc`, {
-        headers,
-        responseType: 'blob'
-      });
+  const openEditModal = (facture) => {
+    setEditingFacture(facture);
+    setEditStatut(facture.statut);
+    setEditObservations(facture.observations || '');
+    setEditNumeroBonPaiement(facture.numeroBonPaiement || '');
+  };
 
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = (poNumber ? poNumber : `BC-${id.slice(-8)}`) + '.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (e) {
-      alert(
-        e?.response?.data?.message ||
-          'Erreur lors du téléchargement du BC PDF'
-      );
+  const closeEditModal = () => {
+    setEditingFacture(null);
+    setEditStatut('');
+    setEditObservations('');
+    setEditNumeroBonPaiement('');
+  };
+
+  const saveFacture = async () => {
+    if (!editingFacture) return;
+    try {
+      await axios.patch(API + '/api/factures/' + editingFacture._id, {
+        statut: editStatut,
+        observations: editObservations,
+        numeroBonPaiement: editNumeroBonPaiement
+      }, { headers });
+      closeEditModal();
+      loadFactures();
+      loadStats();
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Erreur lors de la mise à jour');
     }
   };
 
   const uniqueHotels = useMemo(() => {
     const set = new Set();
-    rows.forEach(r => {
-      if (r.relex?.hotel?.name) set.add(r.relex.hotel.name);
+    factures.forEach(f => {
+      if (f.hotel?.name) set.add(f.hotel.name);
     });
     return Array.from(set);
-  }, [rows]);
+  }, [factures]);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter(r => {
+  const filteredFactures = useMemo(() => {
+    return factures.filter(f => {
       const text = (
-        (r.employee?.name || '') +
+        (f.hotel?.name || '') +
         ' ' +
-        (r.destination || '') +
+        (f.numeroFacture || '') +
         ' ' +
-        (r.city || '') +
-        ' ' +
-        (r.relex?.hotel?.name || '')
-      )
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '');
+        (f.observations || '')
+      ).toLowerCase();
 
-      const q = search
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '');
-
-      if (q && !text.includes(q)) return false;
-
-      if (statusFilter !== 'ALL') {
-        const st = r.finance?.paymentStatus || 'NON_PAYE';
-        if (st !== statusFilter) return false;
-      }
-
-      if (hotelFilter !== 'ALL') {
-        if (r.relex?.hotel?.name !== hotelFilter) return false;
-      }
+      if (search && !text.includes(search.toLowerCase())) return false;
+      if (statusFilter !== 'ALL' && f.statut !== statusFilter) return false;
+      if (hotelFilter !== 'ALL' && f.hotel?.name !== hotelFilter) return false;
 
       return true;
     });
-  }, [rows, search, statusFilter, hotelFilter]);
+  }, [factures, search, statusFilter, hotelFilter]);
 
-  const kpis = useMemo(() => {
-    const totalBc = rows.length;
-    const paid = rows.filter(r => r.finance?.paymentStatus === 'PAYE').length;
-    const unpaid = rows.filter(r => r.finance?.paymentStatus !== 'PAYE')
-      .length;
-    const totalAmount = rows.reduce(
-      (acc, r) => acc + (r.finance?.total || 0),
-      0
-    );
+  const getStatutBadgeClass = (statut) => {
+    switch (statut) {
+      case 'PAYEE': return 'status-RESERVEE';
+      case 'VALIDEE': return 'status-EN_ATTENTE_RELEX';
+      case 'REJETEE': return 'status-REFUSEE';
+      default: return '';
+    }
+  };
 
-    return {
-      totalBc,
-      paid,
-      unpaid,
-      totalAmount
-    };
-  }, [rows]);
+  const getStatutLabel = (statut) => {
+    switch (statut) {
+      case 'EN_ATTENTE': return 'En attente';
+      case 'VALIDEE': return 'Validee';
+      case 'PAYEE': return 'Payee';
+      case 'REJETEE': return 'Rejetee';
+      default: return statut;
+    }
+  };
 
   const exportCsv = () => {
-    if (!filteredRows.length) {
-      alert('Aucune ligne à exporter avec les filtres actuels.');
+    if (!filteredFactures.length) {
+      alert('Aucune facture a exporter.');
       return;
     }
 
-    const headers = [
-      'Employé',
-      'Destination',
-      'Ville',
-      'Hôtel',
-      'BC',
+    const csvHeaders = [
+      'Numero Facture',
+      'Hotel',
+      'Date Facture',
       'Montant',
       'Devise',
-      'Statut paiement',
-      'Date paiement'
+      'Statut',
+      'Date Paiement',
+      'Observations'
     ];
 
-    const lines = filteredRows.map(r => {
+    const lines = filteredFactures.map(f => {
       const cols = [
-        r.employee?.name || '',
-        r.destination || '',
-        r.city || '',
-        r.relex?.hotel?.name || '',
-        r.finance?.poNumber || '',
-        r.finance?.total != null ? String(r.finance.total) : '',
-        r.finance?.currency || 'DZD',
-        r.finance?.paymentStatus === 'PAYE' ? 'PAYE' : 'NON_PAYE',
-        r.finance?.paymentDate
-          ? new Date(r.finance.paymentDate).toLocaleDateString()
-          : ''
+        f.numeroFacture || '',
+        f.hotel?.name || '',
+        f.dateFacture ? new Date(f.dateFacture).toLocaleDateString() : '',
+        f.montant != null ? String(f.montant) : '',
+        f.devise || 'DZD',
+        f.statut || '',
+        f.datePaiement ? new Date(f.datePaiement).toLocaleDateString() : '',
+        f.observations || ''
       ];
-      return cols
-        .map(v => '"' + String(v).replace(/"/g, '""') + '"')
-        .join(';');
+      return cols.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';');
     });
 
-    const csvContent = ['\ufeff' + headers.join(';'), ...lines].join('\n');
-    const blob = new Blob([csvContent], {
-      type: 'text/csv;charset=utf-8;'
-    });
-
+    const csvContent = ['\ufeff' + csvHeaders.join(';'), ...lines].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'bc-finance.csv';
+    a.download = 'factures-hotels.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -212,64 +209,133 @@ export default function Finance() {
     <div>
       <Nav />
       <div className="wrapper" style={{ maxWidth: '1100px' }}>
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+            Gestion des Factures Hotels
+          </div>
+          <div className="text-muted" style={{ fontSize: '0.8rem', marginTop: '0.1rem' }}>
+            Suivi des creances et paiements aux etablissements partenaires
+          </div>
+        </div>
+
         <div className="grid-kpi" style={{ marginBottom: '1rem' }}>
           <KPI
-            label="Bons de commande"
-            value={kpis.totalBc}
-            hint="Réservations passées par Relex"
+            label="En attente"
+            value={stats.enAttente.count}
+            hint={`${stats.enAttente.total.toLocaleString()} DZD`}
           />
           <KPI
-            label="BC payés"
-            value={kpis.paid}
-            hint="Marqués comme PAYE par Finance"
+            label="Validees"
+            value={stats.validees.count}
+            hint={`${stats.validees.total.toLocaleString()} DZD`}
           />
           <KPI
-            label="BC en attente"
-            value={kpis.unpaid}
-            hint="Suivi des créances hébergement"
+            label="Payees"
+            value={stats.payees.count}
+            hint={`${stats.payees.total.toLocaleString()} DZD`}
           />
           <KPI
-            label="Montant cumulé"
-            value={
-              kpis.totalAmount
-                ? kpis.totalAmount.toLocaleString('fr-DZ', {
-                    maximumFractionDigits: 2
-                  }) + ' DZD'
-                : '—'
-            }
-            hint="Somme des montants engagés"
+            label="Rejetees"
+            value={stats.rejetees.count}
+            hint={`${stats.rejetees.total.toLocaleString()} DZD`}
           />
         </div>
 
+        {/* Formulaire nouvelle facture */}
         <div className="card" style={{ marginBottom: '1rem' }}>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.75rem',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '0.5rem'
-            }}
-          >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showForm ? '0.75rem' : 0 }}>
             <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
-              Base des bons de commande (en temps réel)
+              {showForm ? 'Nouvelle facture' : 'Ajouter une facture'}
             </div>
-            <button className="btn subtle" type="button" onClick={exportCsv}>
-              Exporter en CSV
+            <button
+              className="btn subtle"
+              type="button"
+              onClick={() => setShowForm(!showForm)}
+            >
+              {showForm ? 'Annuler' : '+ Ajouter'}
             </button>
           </div>
-          <div
-            className="form-grid-2"
-            style={{
-              gap: '0.5rem',
-              marginBottom: '0.5rem',
-              gridTemplateColumns: 'minmax(0, 2fr) repeat(2, minmax(0,1fr))'
-            }}
-          >
+
+          {showForm && (
+            <form onSubmit={createFacture} style={{ display: 'grid', gap: '0.5rem' }}>
+              <div className="form-grid-2">
+                <select
+                  className="input"
+                  value={factureForm.hotel}
+                  onChange={e => setFactureForm({ ...factureForm, hotel: e.target.value })}
+                  required
+                >
+                  <option value="">Selectionner un hotel</option>
+                  {hotels.map(h => (
+                    <option key={h._id} value={h._id}>{h.name} - {h.city}</option>
+                  ))}
+                </select>
+                <input
+                  className="input"
+                  placeholder="Numero de facture"
+                  value={factureForm.numeroFacture}
+                  onChange={e => setFactureForm({ ...factureForm, numeroFacture: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-grid-2">
+                <input
+                  className="input"
+                  type="date"
+                  placeholder="Date facture"
+                  value={factureForm.dateFacture}
+                  onChange={e => setFactureForm({ ...factureForm, dateFacture: e.target.value })}
+                  required
+                />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    className="input"
+                    type="number"
+                    placeholder="Montant"
+                    value={factureForm.montant}
+                    onChange={e => setFactureForm({ ...factureForm, montant: e.target.value })}
+                    required
+                    style={{ flex: 2 }}
+                  />
+                  <select
+                    className="input"
+                    value={factureForm.devise}
+                    onChange={e => setFactureForm({ ...factureForm, devise: e.target.value })}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="DZD">DZD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+              </div>
+              <textarea
+                className="input"
+                placeholder="Observations (optionnel)"
+                rows={2}
+                value={factureForm.observations}
+                onChange={e => setFactureForm({ ...factureForm, observations: e.target.value })}
+              />
+              <button className="btn" type="submit">Enregistrer la facture</button>
+            </form>
+          )}
+        </div>
+
+        {/* Liste des factures */}
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+              Liste des factures
+            </div>
+            <button className="btn subtle" type="button" onClick={exportCsv}>
+              Exporter CSV
+            </button>
+          </div>
+
+          <div className="form-grid-2" style={{ gap: '0.5rem', marginBottom: '0.5rem', gridTemplateColumns: 'minmax(0, 2fr) repeat(2, minmax(0,1fr))' }}>
             <input
               className="input"
-              placeholder="Rechercher (employé, destination, ville, hôtel)"
+              placeholder="Rechercher (hotel, numero...)"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -279,237 +345,114 @@ export default function Finance() {
               onChange={e => setStatusFilter(e.target.value)}
             >
               <option value="ALL">Tous les statuts</option>
-              <option value="NON_PAYE">Non payé</option>
-              <option value="PAYE">Payé</option>
+              <option value="EN_ATTENTE">En attente</option>
+              <option value="VALIDEE">Validee</option>
+              <option value="PAYEE">Payee</option>
+              <option value="REJETEE">Rejetee</option>
             </select>
             <select
               className="input"
               value={hotelFilter}
               onChange={e => setHotelFilter(e.target.value)}
             >
-              <option value="ALL">Tous les hôtels</option>
+              <option value="ALL">Tous les hotels</option>
               {uniqueHotels.map(h => (
-                <option key={h} value={h}>
-                  {h}
-                </option>
+                <option key={h} value={h}>{h}</option>
               ))}
             </select>
           </div>
 
           <Table
             columns={[
+              { key: 'numeroFacture', title: 'N Facture' },
+              { key: 'hotel', title: 'Hotel', render: (v, row) => row.hotel?.name || '-' },
+              { key: 'dateFacture', title: 'Date', render: v => v ? new Date(v).toLocaleDateString() : '-' },
+              { key: 'montant', title: 'Montant', render: (v, row) => v ? `${v.toLocaleString()} ${row.devise || 'DZD'}` : '-' },
               {
-                key: 'employee',
-                title: 'Employé',
-                render: (v, row) => row.employee?.name
-              },
-              { key: 'destination', title: 'Destination' },
-              { key: 'city', title: 'Ville' },
-              {
-                key: 'relex.hotel',
-                title: 'Hôtel',
-                render: (v, row) => row.relex?.hotel?.name
-              },
-              {
-                key: 'finance.poNumber',
-                title: 'BC',
-                render: (v, row) => row.finance?.poNumber || '—'
-              },
-              {
-                key: 'finance.total',
-                title: 'Montant',
-                render: (v, row) =>
-                  row.finance?.total
-                    ? row.finance.total +
-                      ' ' +
-                      (row.finance.currency || 'DZD')
-                    : '—'
-              },
-              {
-                key: 'finance.paymentStatus',
-                title: 'Paiement',
-                render: (v, row) => (
-                  <span
-                    className={
-                      'badge ' +
-                      (row.finance?.paymentStatus === 'PAYE'
-                        ? 'status-EFFECTUEE'
-                        : '')
-                    }
-                  >
-                    {row.finance?.paymentStatus === 'PAYE'
-                      ? 'Payé'
-                      : 'Non payé'}
+                key: 'statut',
+                title: 'Statut',
+                render: v => (
+                  <span className={'badge ' + getStatutBadgeClass(v)}>
+                    {getStatutLabel(v)}
                   </span>
                 )
               },
-              // 🔹 Nouvelle colonne : BC PDF
-              {
-                key: 'bcPdf',
-                title: 'BC PDF',
-                render: (v, row) =>
-                  row.finance ? (
-                    <button
-                      className="btn subtle"
-                      type="button"
-                      onClick={() =>
-                        downloadBC(row._id, row.finance?.poNumber)
-                      }
-                    >
-                      PDF
-                    </button>
-                  ) : (
-                    '—'
-                  )
-              },
+              { key: 'datePaiement', title: 'Paiement', render: v => v ? new Date(v).toLocaleDateString() : '-' },
               {
                 key: '_id',
                 title: 'Action',
                 render: (v, row) => (
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => openModal(row)}
-                  >
-                    Paiement
+                  <button className="btn" type="button" onClick={() => openEditModal(row)}>
+                    Traiter
                   </button>
                 )
               }
             ]}
-            data={filteredRows}
+            data={filteredFactures}
           />
         </div>
 
-        {editingId && currentRow && (
+        {/* Modal de traitement */}
+        {editingFacture && (
           <div className="card" style={{ marginTop: '1rem' }}>
-            <div
-              style={{
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                marginBottom: '0.3rem'
-              }}
-            >
-              Suivi du paiement
+            <div style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+              Traitement de la facture
             </div>
-            <div
-              className="text-muted"
-              style={{ fontSize: '0.78rem', marginBottom: '0.5rem' }}
-            >
-              Bon de commande généré automatiquement après la réservation par
-              Relex.
+            <div style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+              <div><strong>Numero :</strong> {editingFacture.numeroFacture}</div>
+              <div><strong>Hotel :</strong> {editingFacture.hotel?.name}</div>
+              <div><strong>Montant :</strong> {editingFacture.montant?.toLocaleString()} {editingFacture.devise}</div>
+              <div><strong>Date facture :</strong> {editingFacture.dateFacture ? new Date(editingFacture.dateFacture).toLocaleDateString() : '-'}</div>
             </div>
-            <div style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+
+            <div className="form-grid-2" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
               <div>
-                <strong>Employé :</strong> {currentRow.employee?.name}
-              </div>
-              <div>
-                <strong>Hôtel :</strong> {currentRow.relex?.hotel?.name}
-              </div>
-              <div>
-                <strong>Ville :</strong> {currentRow.city}
-              </div>
-              <div>
-                <strong>Dates :</strong>{' '}
-                {currentRow.relex?.finalStartDate
-                  ? new Date(
-                      currentRow.relex.finalStartDate
-                    ).toLocaleDateString()
-                  : ''}
-                {' → '}
-                {currentRow.relex?.finalEndDate
-                  ? new Date(
-                      currentRow.relex.finalEndDate
-                    ).toLocaleDateString()
-                  : ''}
-              </div>
-              <div>
-                <strong>BC :</strong> {currentRow.finance?.poNumber || '—'}
-              </div>
-              <div>
-                <strong>Montant :</strong>{' '}
-                {currentRow.finance?.total
-                  ? currentRow.finance.total +
-                    ' ' +
-                    (currentRow.finance.currency || 'DZD')
-                  : '—'}
-              </div>
-            </div>
-            <div className="form-grid-2">
-              <div>
-                <div
-                  className="text-muted"
-                  style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}
-                >
-                  Statut de paiement
+                <div className="text-muted" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                  Statut
                 </div>
                 <select
                   className="input"
-                  value={paymentStatus}
-                  onChange={e => setPaymentStatus(e.target.value)}
+                  value={editStatut}
+                  onChange={e => setEditStatut(e.target.value)}
                 >
-                  <option value="NON_PAYE">Non payé</option>
-                  <option value="PAYE">Payé</option>
+                  <option value="EN_ATTENTE">En attente</option>
+                  <option value="VALIDEE">Validee</option>
+                  <option value="PAYEE">Payee</option>
+                  <option value="REJETEE">Rejetee</option>
                 </select>
               </div>
               <div>
-                <div
-                  className="text-muted"
-                  style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}
-                >
-                  Date de paiement
+                <div className="text-muted" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                  N Bon de paiement
                 </div>
                 <input
                   className="input"
-                  type="date"
-                  value={paymentDate}
-                  onChange={e => setPaymentDate(e.target.value)}
+                  placeholder="Numero bon paiement"
+                  value={editNumeroBonPaiement}
+                  onChange={e => setEditNumeroBonPaiement(e.target.value)}
                 />
               </div>
             </div>
-            <div
-              style={{
-                marginTop: '0.75rem',
-                display: 'flex',
-                gap: '0.5rem',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
-              <button
-                className="btn subtle"
-                type="button"
-                onClick={() =>
-                  downloadBC(
-                    currentRow._id,
-                    currentRow.finance?.poNumber
-                  )
-                }
-              >
-                Télécharger le BC PDF
-              </button>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '0.5rem',
-                  justifyContent: 'flex-end',
-                  flex: 1
-                }}
-              >
-                <button
-                  className="btn"
-                  type="button"
-                  onClick={savePayment}
-                >
-                  Enregistrer
-                </button>
-                <button
-                  className="btn subtle"
-                  type="button"
-                  onClick={closeModal}
-                >
-                  Annuler
-                </button>
+
+            <div style={{ marginBottom: '0.5rem' }}>
+              <div className="text-muted" style={{ fontSize: '0.78rem', marginBottom: '0.2rem' }}>
+                Observations
               </div>
+              <textarea
+                className="input"
+                rows={2}
+                value={editObservations}
+                onChange={e => setEditObservations(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button className="btn" type="button" onClick={saveFacture}>
+                Enregistrer
+              </button>
+              <button className="btn subtle" type="button" onClick={closeEditModal}>
+                Annuler
+              </button>
             </div>
           </div>
         )}

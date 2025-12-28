@@ -269,7 +269,7 @@ export default function Relex() {
               }}
             >
               <button className="btn" onClick={save}>
-                Valider & transmettre à Finance
+                Confirmer la reservation
               </button>
               <button
                 type="button"
