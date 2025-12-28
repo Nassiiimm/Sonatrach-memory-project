@@ -153,7 +153,7 @@ export default function Admin() {
           }}
         >
           {/* COMPTES UTILISATEURS */}
-          <div className="card" style={{ display: 'grid', gap: '0.5rem' }}>
+          <div className="card" style={{ display: 'grid', gap: '0.5rem', maxHeight: '520px', overflowY: 'auto' }}>
             <div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                 Comptes utilisateurs
@@ -171,7 +171,7 @@ export default function Admin() {
 
             <form
               onSubmit={createUser}
-              style={{ display: 'grid', gap: '0.4rem' }}
+              style={{ display: 'grid', gap: '0.3rem' }}
             >
               <input
                 className="input"
@@ -289,7 +289,7 @@ export default function Admin() {
           </div>
 
           {/* HOTELS */}
-          <div className="card" style={{ display: 'grid', gap: '0.5rem' }}>
+          <div className="card" style={{ display: 'grid', gap: '0.5rem', maxHeight: '520px', overflowY: 'auto' }}>
             <div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                 Hôtels & grilles tarifaires
@@ -306,7 +306,7 @@ export default function Admin() {
 
             <form
               onSubmit={createHotel}
-              style={{ display: 'grid', gap: '0.4rem' }}
+              style={{ display: 'grid', gap: '0.3rem' }}
             >
               <input
                 className="input"
