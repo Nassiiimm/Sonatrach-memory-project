@@ -1,0 +1,35 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: always
+    ports:
+      - "27020:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build: ./backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/sonatrach_reservations
+      - NODE_ENV=production
+    depends_on:
+      - mongo
+    volumes:
+      - backend_files:/app/files
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:
+  backend_files:
