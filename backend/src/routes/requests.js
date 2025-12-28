@@ -8,7 +8,8 @@ const Audit = require('../models/Audit');
 const Hotel = require('../models/Hotel');
 const { auth, requireRole } = require('../middleware/auth');
 const STATUS = require('../constants/status');
-const PDFDocument = require('pdfkit');
+const { generateBCPdf, generateBCNumber } = require('../utils/pdfGenerator');
+const { storePdfBuffer, getPdfById } = require('../utils/gridfs');
 
 const router = express.Router();
 
@@ -185,115 +186,147 @@ router.patch('/:id/manager', auth, requireRole(['MANAGER']), async (req, res) =>
   res.json(request);
 });
 
-// Relex: choisit l'hôtel & formule, génère BC + options
+// Relex: choisit l'hôtel & formule, génère BC + options + PDF automatique
 router.patch('/:id/relex', auth, requireRole(['RELEX']), async (req, res) => {
-  const { 
-    hotelId, 
-    formula, 
-    finalStartDate, 
-    finalEndDate, 
-    comment,
+  try {
+    const {
+      hotelId,
+      formula,
+      finalStartDate,
+      finalEndDate,
+      comment,
+      roomType,
+      allowCancellation,
+      allowHotelChange,
+      isLateReservation,
+      isPostStayEntry
+    } = req.body;
 
-    // champs supplémentaires possibles côté frontend / modèle
-    roomType,
-    allowCancellation,
-    allowHotelChange,
-    isLateReservation,
-    isPostStayEntry
-  } = req.body;
+    // On populate employee pour pouvoir faire un snapshot dans le BC
+    const request = await Request.findById(req.params.id).populate('employee');
+    if (!request) return res.status(404).json({ message: 'Demande introuvable' });
 
-  // On populate employee pour pouvoir faire un snapshot dans le BC
-  const request = await Request.findById(req.params.id).populate('employee');
-  if (!request) return res.status(404).json({ message: 'Demande introuvable' });
+    const hotel = await Hotel.findById(hotelId);
+    if (!hotel) return res.status(400).json({ message: 'Hôtel invalide' });
 
-  const hotel = await Hotel.findById(hotelId);
-  if (!hotel) return res.status(400).json({ message: 'Hôtel invalide' });
+    const start = new Date(finalStartDate || request.startDate);
+    const end = new Date(finalEndDate || request.endDate);
+    const nights = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
 
-  const start = new Date(finalStartDate || request.startDate);
-  const end = new Date(finalEndDate || request.endDate);
-  const nights = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-
-  // Détermination du prix en fonction de la formule et de l'hôtel
-  let pricePerNight = 0;
-  const formulaKey = (formula || '').toUpperCase();
-  switch (formulaKey) {
-    case 'SEJOUR_SIMPLE':
-      pricePerNight = hotel.prices?.simple || 0;
-      break;
-    case 'FORMULE_REPAS':
-      pricePerNight = hotel.prices?.formule_repas || 0;
-      break;
-    case 'DEMI_PENSION':
-      pricePerNight = hotel.prices?.demi_pension || 0;
-      break;
-    case 'PENSION_COMPLETE':
-      pricePerNight = hotel.prices?.pension_complete || 0;
-      break;
-    default:
-      pricePerNight = hotel.prices?.simple || 0;
-  }
-
-  const total = nights * Number(pricePerNight || 0);
-
-  // Génération du numéro de BC si absent
-  const existingFinance = request.finance || {};
-  const poNumber = existingFinance.poNumber 
-    || `BC-${new Date().getFullYear()}-${request._id.toString().slice(-6).toUpperCase()}`;
-
-  // Bloc Relex avec options
-  request.relex = {
-    hotel: hotel._id,
-    formula,
-    finalStartDate: start,
-    finalEndDate: end,
-    comment,
-    roomType,
-    options: {
-      allowCancellation: !!allowCancellation,
-      allowHotelChange: !!allowHotelChange,
-      isLateReservation: !!isLateReservation,
-      isPostStayEntry: !!isPostStayEntry
+    // Détermination du prix en fonction de la formule et de l'hôtel
+    let pricePerNight = 0;
+    const formulaKey = (formula || '').toUpperCase();
+    switch (formulaKey) {
+      case 'SEJOUR_SIMPLE':
+        pricePerNight = hotel.prices?.simple || 0;
+        break;
+      case 'FORMULE_REPAS':
+        pricePerNight = hotel.prices?.formule_repas || 0;
+        break;
+      case 'DEMI_PENSION':
+        pricePerNight = hotel.prices?.demi_pension || 0;
+        break;
+      case 'PENSION_COMPLETE':
+        pricePerNight = hotel.prices?.pension_complete || 0;
+        break;
+      default:
+        pricePerNight = hotel.prices?.simple || 0;
     }
-  };
 
-  // Snapshot employé (pour identification sur BC)
-  const employee = request.employee || {};
-  const employeeSnapshot = {
-    matricule: employee.matricule,
-    name: employee.name,
-    regionAcronym: employee.regionAcronym,
-    serviceImputation: employee.serviceImputation
-  };
+    const total = nights * Number(pricePerNight || 0);
 
-  request.finance = {
-    ...existingFinance,
-    nights,
-    pricePerNight,
-    total,
-    currency: existingFinance.currency || 'DZD',
-    poNumber,
-    validatedAt: existingFinance.validatedAt || new Date(),
-    paymentStatus: existingFinance.paymentStatus || 'NON_PAYE',
-    paymentDate: existingFinance.paymentDate || null,
-    employeeSnapshot,
-    participantsCount: (request.participants || []).length + 1
-  };
+    // Génération du numéro de BC unique
+    const bcNumber = await generateBCNumber(Request);
 
-  request.status = STATUS.RESERVEE;
-  await request.save();
+    // Bloc Relex avec options
+    request.relex = {
+      hotel: hotel._id,
+      formula,
+      finalStartDate: start,
+      finalEndDate: end,
+      comment,
+      roomType,
+      options: {
+        allowCancellation: !!allowCancellation,
+        allowHotelChange: !!allowHotelChange,
+        isLateReservation: !!isLateReservation,
+        isPostStayEntry: !!isPostStayEntry
+      }
+    };
 
-  await Audit.create({
-    action: 'RELEX_RESERVATION',
-    entity: 'Request',
-    entityId: request._id.toString(),
-    by: req.user._id,
-    metadata: { hotel: hotel.name, city: hotel.city, formula, poNumber }
-  });
+    // Snapshot employé complet (pour identification sur BC)
+    const employee = request.employee || {};
+    const employeeSnapshot = {
+      matricule: employee.matricule,
+      name: employee.name,
+      regionAcronym: employee.regionAcronym,
+      region: employee.region,
+      serviceImputation: employee.serviceImputation,
+      department: employee.department
+    };
 
-  res.json(request);
+    const now = new Date();
+    request.finance = {
+      nights,
+      pricePerNight,
+      total,
+      currency: 'DZD',
+      bcNumber,
+      bcGeneratedAt: now,
+      validatedAt: now,
+      paymentStatus: 'NON_PAYE',
+      paymentDate: null,
+      employeeSnapshot,
+      participantsCount: (request.participants || []).length + 1
+    };
+
+    request.status = STATUS.RESERVEE;
+
+    // Génération du PDF et stockage dans GridFS
+    try {
+      const pdfBuffer = await generateBCPdf(request, hotel, bcNumber);
+      const pdfId = await storePdfBuffer(pdfBuffer, `${bcNumber}.pdf`, {
+        requestId: request._id.toString(),
+        bcNumber,
+        employeeName: employee.name,
+        hotel: hotel.name
+      });
+      request.finance.bcPdfId = pdfId;
+      console.log(`PDF BC généré et stocké: ${bcNumber} (GridFS ID: ${pdfId})`);
+    } catch (pdfError) {
+      console.error('Erreur génération/stockage PDF:', pdfError);
+      // On continue même si le PDF échoue - il pourra être régénéré
+    }
+
+    await request.save();
+
+    await Audit.create({
+      action: 'RELEX_RESERVATION',
+      entity: 'Request',
+      entityId: request._id.toString(),
+      by: req.user._id,
+      metadata: {
+        hotel: hotel.name,
+        city: hotel.city,
+        formula,
+        bcNumber,
+        total,
+        nights
+      }
+    });
+
+    // Repopuler l'hôtel pour la réponse
+    await request.populate('relex.hotel');
+
+    res.json(request);
+  } catch (error) {
+    console.error('Erreur route Relex:', error);
+    res.status(500).json({ message: 'Erreur lors du traitement de la réservation' });
+  }
 });
 
-router.get('/:id/bc', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) => {
+// Téléchargement du BC PDF depuis GridFS
+router.get('/:id/bc', auth, requireRole(['FINANCE', 'ADMIN', 'RELEX']), async (req, res) => {
   try {
     const request = await Request.findById(req.params.id)
       .populate('employee')
@@ -303,140 +336,131 @@ router.get('/:id/bc', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) 
       return res.status(404).json({ message: 'Demande introuvable' });
     }
 
-    if (!request.finance) {
+    if (!request.finance || !request.finance.bcNumber) {
       return res.status(400).json({ message: 'Aucun BC généré pour cette demande' });
     }
 
-    const poNumber = request.finance.poNumber || `BC-${request._id.toString().slice(-8)}`;
+    const bcNumber = request.finance.bcNumber;
+
+    // Si le PDF est stocké dans GridFS
+    if (request.finance.bcPdfId) {
+      try {
+        const { stream, file } = await getPdfById(request.finance.bcPdfId);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${bcNumber}.pdf"`);
+        res.setHeader('Content-Length', file.length);
+
+        stream.pipe(res);
+        return;
+      } catch (gridfsError) {
+        console.error('Erreur lecture GridFS, régénération à la volée:', gridfsError);
+        // Continuer avec la régénération
+      }
+    }
+
+    // Régénération à la volée si pas de PDF stocké
+    const hotel = request.relex?.hotel || {};
+    const pdfBuffer = await generateBCPdf(request, hotel, bcNumber);
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `inline; filename="${poNumber}.pdf"`
-    );
+    res.setHeader('Content-Disposition', `inline; filename="${bcNumber}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
 
-    const doc = new PDFDocument({ margin: 40, size: 'A4' });
-    doc.pipe(res);
-
-    // ---- ENTÊTE ----
-    doc
-      .fontSize(10)
-      .text('SONATRACH', { align: 'left' })
-      .moveDown(0.2);
-    doc
-      .fontSize(9)
-      .text('Division Production', { align: 'left' })
-      .text('Direction Finance & Comptabilité', { align: 'left' });
-
-    doc
-      .fontSize(14)
-      .text('BON DE COMMANDE HÉBERGEMENT', { align: 'center' })
-      .moveDown(0.5);
-
-    doc
-      .fontSize(10)
-      .text(`N° BC : ${poNumber}`, { align: 'right' })
-      .text(
-        `Date : ${new Date(request.finance.validatedAt || request.createdAt).toLocaleDateString('fr-DZ')}`,
-        { align: 'right' }
-      )
-      .moveDown(0.5);
-
-    // ---- INFOS EMPLOYÉ / IMPUTATION ----
-    const snap = request.finance.employeeSnapshot || {};
-    const emp = request.employee || {};
-
-    doc
-      .fontSize(10)
-      .text('INFORMATIONS EMPLOYÉ', { underline: true })
-      .moveDown(0.2);
-
-    doc.text(`Matricule : ${snap.matricule || emp.matricule || '-'}`);
-    doc.text(`Nom & prénom : ${snap.name || emp.name || '-'}`);
-    doc.text(`Région : ${snap.regionAcronym || emp.regionAcronym || '-'}`);
-    doc.text(`Service / imputation : ${snap.serviceImputation || emp.serviceImputation || '-'}`);
-    doc.moveDown(0.8);
-
-    // ---- INFOS HÔTEL / SÉJOUR ----
-    const hotel = request.relex?.hotel || {};
-    const nights = request.finance.nights || 0;
-    const pricePerNight = request.finance.pricePerNight || 0;
-    const total = request.finance.total || nights * pricePerNight;
-
-    doc
-      .fontSize(10)
-      .text('INFORMATIONS HÔTEL', { underline: true })
-      .moveDown(0.2);
-
-    doc.text(`Hôtel : ${hotel.name || '-'}`);
-    doc.text(`Ville : ${hotel.city || '-'}`);
-    doc.text(`Formule : ${request.relex?.formula || '-'}`);
-    doc.text(`Type de chambre : ${request.relex?.roomType || '-'}`);
-    doc.moveDown(0.5);
-
-    doc
-      .fontSize(10)
-      .text('PÉRIODE DU SÉJOUR', { underline: true })
-      .moveDown(0.2);
-
-    doc.text(
-      `Du : ${
-        request.relex?.finalStartDate
-          ? new Date(request.relex.finalStartDate).toLocaleDateString('fr-DZ')
-          : new Date(request.startDate).toLocaleDateString('fr-DZ')
-      }`
-    );
-    doc.text(
-      `Au : ${
-        request.relex?.finalEndDate
-          ? new Date(request.relex.finalEndDate).toLocaleDateString('fr-DZ')
-          : new Date(request.endDate).toLocaleDateString('fr-DZ')
-      }`
-    );
-    doc.text(`Nombre de nuits : ${nights}`);
-    doc.moveDown(0.8);
-
-    // ---- RÉCAP COÛT ----
-    doc
-      .fontSize(10)
-      .text('RÉCAPITULATIF FINANCIER', { underline: true })
-      .moveDown(0.2);
-
-    doc.text(`Prix unitaire / nuit : ${pricePerNight.toLocaleString('fr-DZ')} DZD`);
-    doc.text(
-      `Total BC : ${total.toLocaleString('fr-DZ')} ${request.finance.currency || 'DZD'}`
-    );
-    doc.moveDown(0.8);
-
-    // ---- OPTIONS & REMARQUES ----
-    const opts = request.relex?.options || {};
-    const optsList = [];
-    if (opts.allowCancellation) optsList.push('Annulation possible');
-    if (opts.allowHotelChange) optsList.push("Changement d'hôtel autorisé");
-    if (opts.isLateReservation) optsList.push('Réservation tardive');
-    if (opts.isPostStayEntry) optsList.push('Saisie post-hébergement');
-
-    doc
-      .fontSize(10)
-      .text('OPTIONS / CONDITIONS', { underline: true })
-      .moveDown(0.2);
-
-    doc.text(`Options : ${optsList.length ? optsList.join(' · ') : '-'}`);
-    doc.moveDown(0.2);
-    doc.text(`Remarques Relex : ${request.relex?.comment || '-'}`);
-    doc.moveDown(0.8);
-
-    // ---- SIGNATURES ----
-    doc
-      .fontSize(10)
-      .text('Visa Relex : ___________________________', { align: 'left' })
-      .moveDown(2);
-    doc.text('Visa Finance : _________________________', { align: 'left' });
-
-    doc.end();
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Erreur lors de la génération du BC PDF' });
+    console.error('Erreur téléchargement BC:', err);
+    res.status(500).json({ message: 'Erreur lors du téléchargement du BC PDF' });
+  }
+});
+
+// Route pour marquer une réservation comme payée (FINANCE uniquement)
+router.patch('/:id/payment', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) => {
+  try {
+    const { paymentStatus, paymentReference, paymentNote } = req.body;
+
+    const request = await Request.findById(req.params.id);
+    if (!request) {
+      return res.status(404).json({ message: 'Demande introuvable' });
+    }
+
+    if (request.status !== STATUS.RESERVEE) {
+      return res.status(400).json({ message: 'Seules les réservations confirmées peuvent être marquées comme payées' });
+    }
+
+    if (!request.finance) {
+      return res.status(400).json({ message: 'Aucune information financière pour cette demande' });
+    }
+
+    // Mise à jour du statut de paiement
+    request.finance.paymentStatus = paymentStatus || 'PAYE';
+    if (paymentStatus === 'PAYE') {
+      request.finance.paymentDate = new Date();
+    }
+    if (paymentReference) {
+      request.finance.paymentReference = paymentReference;
+    }
+    if (paymentNote) {
+      request.finance.paymentNote = paymentNote;
+    }
+
+    await request.save();
+
+    await Audit.create({
+      action: 'UPDATE_PAYMENT_STATUS',
+      entity: 'Request',
+      entityId: request._id.toString(),
+      by: req.user._id,
+      metadata: {
+        bcNumber: request.finance.bcNumber,
+        paymentStatus: request.finance.paymentStatus,
+        paymentReference,
+        total: request.finance.total
+      }
+    });
+
+    res.json(request);
+  } catch (err) {
+    console.error('Erreur mise à jour paiement:', err);
+    res.status(500).json({ message: 'Erreur lors de la mise à jour du paiement' });
+  }
+});
+
+// Route pour les statistiques Finance
+router.get('/finance/stats', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) => {
+  try {
+    const stats = await Request.aggregate([
+      { $match: { status: STATUS.RESERVEE } },
+      {
+        $group: {
+          _id: '$finance.paymentStatus',
+          count: { $sum: 1 },
+          total: { $sum: '$finance.total' }
+        }
+      }
+    ]);
+
+    const result = {
+      totalReservations: 0,
+      totalAmount: 0,
+      paid: { count: 0, amount: 0 },
+      unpaid: { count: 0, amount: 0 }
+    };
+
+    stats.forEach(s => {
+      result.totalReservations += s.count;
+      result.totalAmount += s.total || 0;
+      if (s._id === 'PAYE') {
+        result.paid = { count: s.count, amount: s.total || 0 };
+      } else {
+        result.unpaid = { count: s.count, amount: s.total || 0 };
+      }
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error('Erreur stats finance:', err);
+    res.status(500).json({ message: 'Erreur lors du calcul des statistiques' });
   }
 });
 

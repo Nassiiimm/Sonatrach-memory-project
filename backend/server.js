@@ -28,8 +28,13 @@ app.use(morgan('dev'));
 app.use('/files', express.static(path.join(__dirname, 'files')));
 
 const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/sonatrach_reservations';
+const { initGridFS } = require('./src/utils/gridfs');
+
 mongoose.connect(mongoUri)
-  .then(() => console.log('MongoDB connecté'))
+  .then(() => {
+    console.log('MongoDB connecté');
+    initGridFS();
+  })
   .catch(err => console.error('Erreur MongoDB', err));
 
 const authRoutes = require('./src/routes/auth');

@@ -72,26 +72,33 @@ const requestSchema = new mongoose.Schema({
     total: Number,
     currency: { type: String, default: 'DZD' },
 
-    poNumber: String,
-    poFile: String,
+    // Bon de Commande
+    bcNumber: { type: String, unique: true, sparse: true },
+    bcPdfId: { type: mongoose.Schema.Types.ObjectId }, // Référence GridFS
+    bcGeneratedAt: Date,
+
     validatedAt: Date,
 
     paymentStatus: {
       type: String,
-      enum: ['NON_PAYE','PAYE'],
+      enum: ['NON_PAYE', 'PAYE'],
       default: 'NON_PAYE'
     },
     paymentDate: Date,
+    paymentReference: String,
+    paymentNote: String,
 
-    // 🔹 Snapshot employé pour le BC
+    // Snapshot employé pour le BC
     employeeSnapshot: {
       matricule: String,
       name: String,
       regionAcronym: String,
-      serviceImputation: String
+      region: String,
+      serviceImputation: String,
+      department: String
     },
 
-    // 🔹 Si réservation groupée
+    // Si réservation groupée
     participantsCount: Number
   }
 
