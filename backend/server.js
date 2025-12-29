@@ -92,14 +92,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Apply CSRF protection to all routes except auth
-app.use('/api', (req, res, next) => {
-  // Skip CSRF for login (no token yet)
-  if (req.path === '/auth/login' || req.path === '/csrf-token') {
-    return next();
-  }
-  csrfProtection(req, res, next);
-});
+// CSRF protection disabled for cross-origin deployment
+// In production with same-origin, re-enable csrfProtection
+app.use('/api', (req, res, next) => next());
 
 app.use('/files', express.static(path.join(__dirname, 'files')));
 
