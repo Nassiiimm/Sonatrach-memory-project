@@ -19,7 +19,8 @@ import {
   Hotel
 } from 'lucide-react';
 
-const API = '';
+import { API_URL } from '../config.js';
+const API = API_URL;
 
 export default function Requests() {
   const { headers } = useAuth();

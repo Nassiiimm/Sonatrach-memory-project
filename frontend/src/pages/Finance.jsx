@@ -23,7 +23,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 
-const API = '';
+import { API_URL } from '../config.js';
+const API = API_URL;
 
 export default function Finance() {
   const { headers } = useAuth();

@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config.js';
 
 const AuthContext = createContext(null);
 
 // Configure axios defaults
+axios.defaults.baseURL = API_URL;
 axios.defaults.withCredentials = true;
 
 export function AuthProvider({ children }) {

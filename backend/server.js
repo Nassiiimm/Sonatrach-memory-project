@@ -17,9 +17,21 @@ if (!process.env.JWT_SECRET) {
 
 const app = express();
 
-// Configuration CORS
+// Configuration CORS - support multiple origins
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:8080')
+  .split(',')
+  .map(o => o.trim());
+
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS non autorisé'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -73,6 +85,11 @@ app.get('/api/csrf-token', (req, res) => {
   });
 
   res.json({ csrfToken: token });
+});
+
+// Health check endpoint for Railway
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Apply CSRF protection to all routes except auth
