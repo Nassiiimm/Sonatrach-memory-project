@@ -22,7 +22,7 @@ const User = require('../src/models/User');
         matricule,
         name: 'Admin Sonatrach',
         email,
-        password: 'Admin@2024',
+        password: 'admin123',
         role: 'ADMIN',
         department: 'DSI',
         region: 'Siège Alger',
