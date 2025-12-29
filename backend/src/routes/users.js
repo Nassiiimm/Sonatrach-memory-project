@@ -35,8 +35,30 @@ const updateUserSchema = Joi.object({
 });
 
 router.get('/', auth, requireRole(['ADMIN']), async (req, res) => {
-  const users = await User.find().select('-password').sort({ createdAt: -1 });
-  res.json(users);
+  const { page = 1, limit = 50, role, region, q } = req.query;
+  const filter = {};
+
+  if (role) filter.role = role;
+  if (region) filter.regionAcronym = region;
+  if (q) {
+    filter.$or = [
+      { name: { $regex: q, $options: 'i' } },
+      { email: { $regex: q, $options: 'i' } },
+      { matricule: { $regex: q, $options: 'i' } }
+    ];
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [items, total] = await Promise.all([
+    User.find(filter)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    User.countDocuments(filter)
+  ]);
+
+  res.json({ data: items, total, page: Number(page), limit: Number(limit) });
 });
 
 router.post('/', auth, requireRole(['ADMIN']), async (req, res) => {

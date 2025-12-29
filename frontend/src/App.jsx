@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { useAuth } from './context/Auth.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -18,7 +19,21 @@ function PrivateRoute({ children, roles }) {
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <Toaster
+        position="top-right"
+        richColors
+        closeButton
+        theme="dark"
+        toastOptions={{
+          style: {
+            background: '#111111',
+            border: '1px solid rgba(82, 82, 91, 0.5)',
+            color: '#f4f4f5',
+          },
+        }}
+      />
+      <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={
         <PrivateRoute>
@@ -51,6 +66,7 @@ export default function App() {
         </PrivateRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

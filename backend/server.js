@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const path = require('path');
+const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 
 dotenv.config();
 
@@ -23,7 +25,64 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 app.use(morgan('dev'));
+
+// CSRF Protection - Double Submit Cookie Pattern
+const csrfTokens = new Map(); // In production, use Redis
+
+const generateCsrfToken = () => crypto.randomBytes(32).toString('hex');
+
+const csrfProtection = (req, res, next) => {
+  // Skip CSRF for GET, HEAD, OPTIONS
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  const tokenFromHeader = req.headers['x-csrf-token'];
+  const tokenFromCookie = req.cookies['csrf-token'];
+
+  if (!tokenFromHeader || !tokenFromCookie || tokenFromHeader !== tokenFromCookie) {
+    return res.status(403).json({ message: 'CSRF token invalide' });
+  }
+
+  // Validate token exists in our store
+  if (!csrfTokens.has(tokenFromCookie)) {
+    return res.status(403).json({ message: 'CSRF token expire' });
+  }
+
+  next();
+};
+
+// CSRF token endpoint
+app.get('/api/csrf-token', (req, res) => {
+  const token = generateCsrfToken();
+  csrfTokens.set(token, Date.now());
+
+  // Clean old tokens (older than 24h)
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  for (const [t, timestamp] of csrfTokens) {
+    if (timestamp < oneDayAgo) csrfTokens.delete(t);
+  }
+
+  res.cookie('csrf-token', token, {
+    httpOnly: false, // Frontend needs to read it
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 24 * 60 * 60 * 1000 // 24h
+  });
+
+  res.json({ csrfToken: token });
+});
+
+// Apply CSRF protection to all routes except auth
+app.use('/api', (req, res, next) => {
+  // Skip CSRF for login (no token yet)
+  if (req.path === '/auth/login' || req.path === '/csrf-token') {
+    return next();
+  }
+  csrfProtection(req, res, next);
+});
 
 app.use('/files', express.static(path.join(__dirname, 'files')));
 

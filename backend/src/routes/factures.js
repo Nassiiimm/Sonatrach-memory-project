@@ -30,11 +30,16 @@ const updateSchema = Joi.object({
 
 // GET /api/factures - Liste des factures
 router.get('/', auth, requireRole(['FINANCE', 'ADMIN']), async (req, res) => {
-  const { statut, hotel, page = 1, limit = 50 } = req.query;
+  const { statut, hotel, page = 1, limit = 50, startDate, endDate } = req.query;
   const filter = {};
 
   if (statut) filter.statut = statut;
   if (hotel) filter.hotel = hotel;
+  if (startDate || endDate) {
+    filter.dateFacture = {};
+    if (startDate) filter.dateFacture.$gte = new Date(startDate);
+    if (endDate) filter.dateFacture.$lte = new Date(endDate);
+  }
 
   const skip = (Number(page) - 1) * Number(limit);
   const [items, total] = await Promise.all([

@@ -1,82 +1,102 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/Auth.jsx';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Mail, Lock, LogIn, Building2, Loader2 } from 'lucide-react';
 
-export default function Login(){
+export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const onSubmit = async (e)=>{
+  const onSubmit = async (e) => {
     e.preventDefault();
-    setErr(null);
     setLoading(true);
-    try{
+    try {
       await login(email, password);
+      toast.success('Connexion réussie', {
+        description: 'Bienvenue sur StayFlow'
+      });
       navigate('/');
-    }catch(e){
-      setErr("Échec de connexion, vérifiez vos identifiants.");
+    } catch (e) {
+      toast.error('Échec de connexion', {
+        description: 'Vérifiez vos identifiants et réessayez.'
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div 
-      style={{ 
-        minHeight:'100vh',
-        display:'flex',
-        alignItems:'center',
-        justifyContent:'center',
-        padding:'1.5rem'
-      }}
-    >
-      <div 
-        className="card" 
-        style={{ 
-          width:'100%', 
-          maxWidth:'420px',
-          padding:'1.9rem 2rem',
-          borderRadius:'26px'
-        }}
-      >
-        <div style={{ marginBottom:'1.3rem' }}>
-          <div style={{ fontSize:'0.78rem', letterSpacing:'0.18em', textTransform:'uppercase', color:'#71717a', marginBottom:'0.35rem' }}>
-            Sonatrach · Hébergements
+    <div className="login-container">
+      <div className="login-card card">
+        {/* Logo & Header */}
+        <div className="login-header">
+          <div className="login-logo">
+            <Building2 size={32} strokeWidth={1.5} />
           </div>
-          <div style={{ fontSize:'1.35rem', fontWeight:650, marginBottom:'0.25rem' }}>Connexion</div>
-          <div className="text-muted" style={{ fontSize:'0.8rem' }}>Portail de gestion des réservations hôtelières.</div>
+          <div className="login-subtitle">Sonatrach · Hébergements</div>
+          <h1 className="login-title">Connexion</h1>
+          <p className="login-description">
+            Portail de gestion des réservations hôtelières
+          </p>
         </div>
-        <form onSubmit={onSubmit} style={{ display:'grid', gap:'0.6rem' }}>
-          <input 
-            className="input" 
-            placeholder="Email professionnel" 
-            value={email} 
-            onChange={e=>setEmail(e.target.value)} 
-          />
-          <input 
-            className="input" 
-            placeholder="Mot de passe" 
-            type="password" 
-            value={password} 
-            onChange={e=>setPassword(e.target.value)} 
-          />
-          {err && (
-            <div style={{ color:'#f97373', fontSize:'0.8rem', marginTop:'0.1rem' }}>
-              {err}
-            </div>
-          )}
-          <button 
-            className="btn" 
-            style={{ width:'100%', marginTop:'0.4rem' }} 
-            disabled={loading}
+
+        {/* Form */}
+        <form onSubmit={onSubmit} className="login-form">
+          <div className="input-group">
+            <Mail className="input-icon" size={18} />
+            <input
+              className="input input-with-icon"
+              type="email"
+              placeholder="Email professionnel"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          <div className="input-group">
+            <Lock className="input-icon" size={18} />
+            <input
+              className="input input-with-icon"
+              type="password"
+              placeholder="Mot de passe"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn-login"
+            disabled={loading || !email || !password}
           >
-            {loading ? 'Connexion...' : 'Se connecter'}
+            {loading ? (
+              <>
+                <Loader2 className="btn-icon spinning" size={18} />
+                Connexion en cours...
+              </>
+            ) : (
+              <>
+                <LogIn className="btn-icon" size={18} />
+                Se connecter
+              </>
+            )}
           </button>
         </form>
+
+        {/* Footer */}
+        <div className="login-footer">
+          <span>StayFlow</span>
+          <span className="separator">·</span>
+          <span>v4.0</span>
+        </div>
       </div>
     </div>
   );

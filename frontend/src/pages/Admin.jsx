@@ -3,6 +3,22 @@ import axios from 'axios';
 import Nav from '../components/Nav.jsx';
 import Table from '../components/Table.jsx';
 import { useAuth } from '../context/Auth.jsx';
+import { toast } from 'sonner';
+import {
+  Settings,
+  Users,
+  Hotel,
+  ClipboardList,
+  UserPlus,
+  Building2,
+  Loader2,
+  Mail,
+  Lock,
+  BadgeCheck,
+  MapPin,
+  Briefcase,
+  DollarSign
+} from 'lucide-react';
 
 const API = '';
 
@@ -11,8 +27,9 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [hotels, setHotels] = useState([]);
   const [audit, setAudit] = useState([]);
+  const [loadingUser, setLoadingUser] = useState(false);
+  const [loadingHotel, setLoadingHotel] = useState(false);
 
-  // Formulaire utilisateur
   const [userForm, setUserForm] = useState({
     name: '',
     email: '',
@@ -25,11 +42,10 @@ export default function Admin() {
     regionAcronym: ''
   });
 
-  // Formulaire hôtel
   const [hotelForm, setHotelForm] = useState({
     name: '',
     city: '',
-    country: 'Algérie',
+    country: 'Algerie',
     code: '',
     provider: '',
     notes: '',
@@ -67,8 +83,12 @@ export default function Admin() {
 
   const createUser = async e => {
     e.preventDefault();
+    setLoadingUser(true);
     try {
       await axios.post(API + '/api/users', userForm, { headers });
+      toast.success('Utilisateur cree', {
+        description: `${userForm.name} a ete ajoute avec le role ${userForm.role}`
+      });
       setUserForm({
         name: '',
         email: '',
@@ -82,21 +102,26 @@ export default function Admin() {
       });
       loadUsers();
     } catch (err) {
-      alert(
-        err?.response?.data?.message ||
-          'Erreur lors de la création du compte utilisateur'
-      );
+      toast.error('Erreur', {
+        description: err?.response?.data?.message || 'Erreur lors de la creation du compte'
+      });
+    } finally {
+      setLoadingUser(false);
     }
   };
 
   const createHotel = async e => {
     e.preventDefault();
+    setLoadingHotel(true);
     try {
       await axios.post(API + '/api/hotels', hotelForm, { headers });
+      toast.success('Hotel enregistre', {
+        description: `${hotelForm.name} a ete ajoute au referentiel`
+      });
       setHotelForm({
         name: '',
         city: '',
-        country: 'Algérie',
+        country: 'Algerie',
         code: '',
         provider: '',
         notes: '',
@@ -109,10 +134,11 @@ export default function Admin() {
       });
       loadHotels();
     } catch (err) {
-      alert(
-        err?.response?.data?.message ||
-          "Erreur lors de l'enregistrement de l'hôtel"
-      );
+      toast.error('Erreur', {
+        description: err?.response?.data?.message || "Erreur lors de l'enregistrement"
+      });
+    } finally {
+      setLoadingHotel(false);
     }
   };
 
@@ -130,325 +156,322 @@ export default function Admin() {
     <div>
       <Nav />
       <div className="wrapper">
-        <div style={{ marginBottom: '1.1rem' }}>
-          <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+        {/* Page Header */}
+        <div className="page-header">
+          <h1 className="page-title">
+            <Settings size={24} style={{ color: 'var(--accent)' }} />
             Administration
-          </div>
-          <div
-            className="text-muted"
-            style={{ fontSize: '0.8rem', marginTop: '0.1rem' }}
-          >
-            Gestion des comptes, des hôtels contractés et suivi des
-            principales actions (audit).
-          </div>
+          </h1>
+          <p className="page-subtitle">
+            Gestion des comptes, des hotels contractes et suivi des actions (audit)
+          </p>
         </div>
 
-        <div
-          className="grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))',
-            gap: '1rem',
-            marginBottom: '1rem'
-          }}
-        >
-          {/* COMPTES UTILISATEURS */}
-          <div className="card" style={{ display: 'grid', gap: '0.5rem', maxHeight: '520px', overflowY: 'auto' }}>
-            <div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                Comptes utilisateurs
+        {/* Forms Grid */}
+        <div className="admin-grid">
+          {/* USER FORM */}
+          <div className="card admin-card">
+            <div className="admin-card-header">
+              <div className="admin-card-icon">
+                <Users size={18} />
               </div>
-              <div
-                className="text-muted"
-                style={{ fontSize: '0.75rem', marginTop: '0.15rem' }}
-              >
-                Création et gestion des comptes par rôle : Employé,
-                Manager, Relex, Finance, Admin. Les champs matricule,
-                région et imputation permettent l'identification sur les
-                bons de commande.
+              <div>
+                <h3 className="admin-card-title">Comptes utilisateurs</h3>
+                <p className="admin-card-subtitle">
+                  Creation de comptes par role : Employe, Manager, Relex, Finance, Admin
+                </p>
               </div>
             </div>
 
-            <form
-              onSubmit={createUser}
-              style={{ display: 'grid', gap: '0.3rem' }}
-            >
-              <input
-                className="input"
-                placeholder="Nom complet"
-                value={userForm.name}
-                onChange={e =>
-                  setUserForm({ ...userForm, name: e.target.value })
-                }
-              />
-              <input
-                className="input"
-                placeholder="Email"
-                value={userForm.email}
-                onChange={e =>
-                  setUserForm({ ...userForm, email: e.target.value })
-                }
-              />
-              <input
-                className="input"
-                placeholder="Mot de passe"
-                type="password"
-                value={userForm.password}
-                onChange={e =>
-                  setUserForm({
-                    ...userForm,
-                    password: e.target.value
-                  })
-                }
-              />
-              <div className="form-grid-2">
+            <form onSubmit={createUser} className="admin-form">
+              <div className="form-group">
+                <label className="form-label">Nom complet</label>
                 <input
                   className="input"
-                  placeholder="Matricule"
-                  value={userForm.matricule}
-                  onChange={e =>
-                    setUserForm({
-                      ...userForm,
-                      matricule: e.target.value
-                    })
-                  }
-                />
-                <input
-                  className="input"
-                  placeholder="Acronyme région (HMD, HRM, OHT...)"
-                  value={userForm.regionAcronym}
-                  onChange={e =>
-                    setUserForm({
-                      ...userForm,
-                      regionAcronym: e.target.value
-                    })
-                  }
+                  placeholder="Nom et prenom"
+                  value={userForm.name}
+                  onChange={e => setUserForm({ ...userForm, name: e.target.value })}
+                  required
                 />
               </div>
-              <div className="form-grid-2">
-                <input
-                  className="input"
-                  placeholder="Département (optionnel)"
-                  value={userForm.department}
-                  onChange={e =>
-                    setUserForm({
-                      ...userForm,
-                      department: e.target.value
-                    })
-                  }
-                />
-                <input
-                  className="input"
-                  placeholder="Service / imputation"
-                  value={userForm.serviceImputation}
-                  onChange={e =>
-                    setUserForm({
-                      ...userForm,
-                      serviceImputation: e.target.value
-                    })
-                  }
-                />
-              </div>
-              <select
-                className="input"
-                value={userForm.role}
-                onChange={e =>
-                  setUserForm({ ...userForm, role: e.target.value })
-                }
-              >
-                <option value="EMPLOYE">EMPLOYE</option>
-                <option value="MANAGER">MANAGER</option>
-                <option value="RELEX">RELEX</option>
-                <option value="FINANCE">FINANCE</option>
-                <option value="ADMIN">ADMIN</option>
-              </select>
 
-              <button className="btn" style={{ marginTop: '0.3rem' }}>
-                Créer le compte
+              <div className="admin-form-row">
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input
+                    className="input"
+                    type="email"
+                    placeholder="email@sonatrach.dz"
+                    value={userForm.email}
+                    onChange={e => setUserForm({ ...userForm, email: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Mot de passe</label>
+                  <input
+                    className="input"
+                    type="password"
+                    placeholder="Mot de passe"
+                    value={userForm.password}
+                    onChange={e => setUserForm({ ...userForm, password: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="admin-form-row">
+                <div className="form-group">
+                  <label className="form-label">Matricule</label>
+                  <input
+                    className="input"
+                    placeholder="123456"
+                    value={userForm.matricule}
+                    onChange={e => setUserForm({ ...userForm, matricule: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Region</label>
+                  <input
+                    className="input"
+                    placeholder="HMD, HRM, OHT..."
+                    value={userForm.regionAcronym}
+                    onChange={e => setUserForm({ ...userForm, regionAcronym: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-form-row">
+                <div className="form-group">
+                  <label className="form-label">Departement</label>
+                  <input
+                    className="input"
+                    placeholder="Optionnel"
+                    value={userForm.department}
+                    onChange={e => setUserForm({ ...userForm, department: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Service / Imputation</label>
+                  <input
+                    className="input"
+                    placeholder="Code imputation"
+                    value={userForm.serviceImputation}
+                    onChange={e => setUserForm({ ...userForm, serviceImputation: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Role</label>
+                <select
+                  className="input"
+                  value={userForm.role}
+                  onChange={e => setUserForm({ ...userForm, role: e.target.value })}
+                >
+                  <option value="EMPLOYE">EMPLOYE</option>
+                  <option value="MANAGER">MANAGER</option>
+                  <option value="RELEX">RELEX</option>
+                  <option value="FINANCE">FINANCE</option>
+                  <option value="ADMIN">ADMIN</option>
+                </select>
+              </div>
+
+              <button className="btn" disabled={loadingUser}>
+                {loadingUser ? (
+                  <>
+                    <Loader2 className="spinning" size={16} />
+                    Creation...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={16} />
+                    Creer le compte
+                  </>
+                )}
               </button>
             </form>
 
-            <div style={{ marginTop: '0.6rem' }}>
+            <div className="admin-table-section">
+              <div className="admin-table-header">
+                <span>{users.length} utilisateur(s)</span>
+              </div>
               <Table
                 columns={[
                   { key: 'name', title: 'Nom' },
                   { key: 'email', title: 'Email' },
-                  { key: 'role', title: 'Rôle' },
-                  {
-                    key: 'matricule',
-                    title: 'Matricule'
-                  },
-                  {
-                    key: 'regionAcronym',
-                    title: 'Région'
-                  }
+                  { key: 'role', title: 'Role', render: v => <span className="badge">{v}</span> },
+                  { key: 'matricule', title: 'Matricule' },
+                  { key: 'regionAcronym', title: 'Region' }
                 ]}
                 data={users}
               />
             </div>
           </div>
 
-          {/* HOTELS */}
-          <div className="card" style={{ display: 'grid', gap: '0.5rem', maxHeight: '520px', overflowY: 'auto' }}>
-            <div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                Hôtels & grilles tarifaires
+          {/* HOTEL FORM */}
+          <div className="card admin-card">
+            <div className="admin-card-header">
+              <div className="admin-card-icon">
+                <Hotel size={18} />
               </div>
-              <div
-                className="text-muted"
-                style={{ fontSize: '0.75rem', marginTop: '0.15rem' }}
-              >
-                Enregistrement des établissements partenaires et de leurs
-                formules de prise en charge. Les tarifs servent au calcul
-                automatique du BC au niveau Relex.
+              <div>
+                <h3 className="admin-card-title">Hotels & grilles tarifaires</h3>
+                <p className="admin-card-subtitle">
+                  Enregistrement des etablissements partenaires et tarifs
+                </p>
               </div>
             </div>
 
-            <form
-              onSubmit={createHotel}
-              style={{ display: 'grid', gap: '0.3rem' }}
-            >
-              <input
-                className="input"
-                placeholder="Nom de l'hôtel"
-                value={hotelForm.name}
-                onChange={e =>
-                  setHotelForm({ ...hotelForm, name: e.target.value })
-                }
-              />
-              <div className="form-grid-2">
+            <form onSubmit={createHotel} className="admin-form">
+              <div className="form-group">
+                <label className="form-label">Nom de l'hotel</label>
                 <input
                   className="input"
-                  placeholder="Ville"
-                  value={hotelForm.city}
-                  onChange={e =>
-                    setHotelForm({
-                      ...hotelForm,
-                      city: e.target.value
-                    })
-                  }
-                />
-                <input
-                  className="input"
-                  placeholder="Pays"
-                  value={hotelForm.country}
-                  onChange={e =>
-                    setHotelForm({
-                      ...hotelForm,
-                      country: e.target.value
-                    })
-                  }
-                />
-              </div>
-              <div className="form-grid-2">
-                <input
-                  className="input"
-                  placeholder="Code interne / contrat"
-                  value={hotelForm.code}
-                  onChange={e =>
-                    setHotelForm({
-                      ...hotelForm,
-                      code: e.target.value
-                    })
-                  }
-                />
-                <input
-                  className="input"
-                  placeholder="Chaîne / groupe (optionnel)"
-                  value={hotelForm.provider}
-                  onChange={e =>
-                    setHotelForm({
-                      ...hotelForm,
-                      provider: e.target.value
-                    })
-                  }
+                  placeholder="Hotel Aurassi, Sheraton..."
+                  value={hotelForm.name}
+                  onChange={e => setHotelForm({ ...hotelForm, name: e.target.value })}
+                  required
                 />
               </div>
 
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  marginTop: '0.3rem'
-                }}
-              >
+              <div className="admin-form-row">
+                <div className="form-group">
+                  <label className="form-label">Ville</label>
+                  <input
+                    className="input"
+                    placeholder="Alger, Oran..."
+                    value={hotelForm.city}
+                    onChange={e => setHotelForm({ ...hotelForm, city: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Pays</label>
+                  <input
+                    className="input"
+                    placeholder="Algerie"
+                    value={hotelForm.country}
+                    onChange={e => setHotelForm({ ...hotelForm, country: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-form-row">
+                <div className="form-group">
+                  <label className="form-label">Code contrat</label>
+                  <input
+                    className="input"
+                    placeholder="HTL-001"
+                    value={hotelForm.code}
+                    onChange={e => setHotelForm({ ...hotelForm, code: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Chaine / Groupe</label>
+                  <input
+                    className="input"
+                    placeholder="Optionnel"
+                    value={hotelForm.provider}
+                    onChange={e => setHotelForm({ ...hotelForm, provider: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-section-label" style={{ marginTop: '0.5rem' }}>
+                <DollarSign size={14} />
                 Tarifs par nuit (DZD)
               </div>
-              <div className="form-grid-2">
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  placeholder="Séjour simple"
-                  value={hotelForm.prices.simple}
-                  onChange={e =>
-                    onChangeHotelPrice('simple', e.target.value)
-                  }
-                />
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  placeholder="Formule repas"
-                  value={hotelForm.prices.formule_repas}
-                  onChange={e =>
-                    onChangeHotelPrice('formule_repas', e.target.value)
-                  }
-                />
+
+              <div className="admin-form-row">
+                <div className="form-group">
+                  <label className="form-label">Sejour simple</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    value={hotelForm.prices.simple}
+                    onChange={e => onChangeHotelPrice('simple', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Formule repas</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    value={hotelForm.prices.formule_repas}
+                    onChange={e => onChangeHotelPrice('formule_repas', e.target.value)}
+                  />
+                </div>
               </div>
-              <div className="form-grid-2">
-                <input
+
+              <div className="admin-form-row">
+                <div className="form-group">
+                  <label className="form-label">Demi-pension</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    value={hotelForm.prices.demi_pension}
+                    onChange={e => onChangeHotelPrice('demi_pension', e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Pension complete</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    value={hotelForm.prices.pension_complete}
+                    onChange={e => onChangeHotelPrice('pension_complete', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Notes</label>
+                <textarea
                   className="input"
-                  type="number"
-                  min="0"
-                  placeholder="Demi-pension"
-                  value={hotelForm.prices.demi_pension}
-                  onChange={e =>
-                    onChangeHotelPrice('demi_pension', e.target.value)
-                  }
-                />
-                <input
-                  className="input"
-                  type="number"
-                  min="0"
-                  placeholder="Pension complète"
-                  value={hotelForm.prices.pension_complete}
-                  onChange={e =>
-                    onChangeHotelPrice('pension_complete', e.target.value)
-                  }
+                  rows={2}
+                  placeholder="Periodes, contraintes de reservation..."
+                  value={hotelForm.notes}
+                  onChange={e => setHotelForm({ ...hotelForm, notes: e.target.value })}
                 />
               </div>
 
-              <textarea
-                className="input"
-                rows={2}
-                placeholder="Notes (périodes, contraintes de réservation, etc.)"
-                value={hotelForm.notes}
-                onChange={e =>
-                  setHotelForm({
-                    ...hotelForm,
-                    notes: e.target.value
-                  })
-                }
-              />
-
-              <button className="btn" style={{ marginTop: '0.3rem' }}>
-                Enregistrer l'hôtel
+              <button className="btn" disabled={loadingHotel}>
+                {loadingHotel ? (
+                  <>
+                    <Loader2 className="spinning" size={16} />
+                    Enregistrement...
+                  </>
+                ) : (
+                  <>
+                    <Building2 size={16} />
+                    Enregistrer l'hotel
+                  </>
+                )}
               </button>
             </form>
 
-            <div style={{ marginTop: '0.6rem' }}>
+            <div className="admin-table-section">
+              <div className="admin-table-header">
+                <span>{hotels.length} hotel(s)</span>
+              </div>
               <Table
                 columns={[
-                  { key: 'name', title: 'Hôtel' },
+                  { key: 'name', title: 'Hotel' },
                   { key: 'city', title: 'Ville' },
                   {
                     key: 'prices',
-                    title: 'Tarifs',
+                    title: 'Tarifs (DZD)',
                     render: v =>
-                      v
-                        ? `Simple: ${v.simple} · Repas: ${v.formule_repas} · DP: ${v.demi_pension} · PC: ${v.pension_complete}`
-                        : '—'
+                      v ? (
+                        <span className="text-muted" style={{ fontSize: '0.72rem' }}>
+                          S:{v.simple} · R:{v.formule_repas} · DP:{v.demi_pension} · PC:{v.pension_complete}
+                        </span>
+                      ) : '-'
                   }
                 ]}
                 data={hotels}
@@ -458,21 +481,22 @@ export default function Admin() {
         </div>
 
         {/* AUDIT */}
-        <div className="card">
-          <div
-            style={{
-              fontSize: '0.95rem',
-              marginBottom: '0.5rem',
-              fontWeight: 600
-            }}
-          >
-            Journal des actions (audit)
+        <div className="card" style={{ marginTop: '1.5rem' }}>
+          <div className="section-header">
+            <h2 className="section-title">
+              <ClipboardList size={18} />
+              Journal des actions (audit)
+            </h2>
           </div>
           <Table
             columns={[
-              { key: 'createdAt', title: 'Date', render: v => (v ? new Date(v).toLocaleString() : '') },
+              {
+                key: 'createdAt',
+                title: 'Date',
+                render: v => (v ? new Date(v).toLocaleString('fr-FR') : '-')
+              },
               { key: 'action', title: 'Action' },
-              { key: 'entity', title: 'Entité' },
+              { key: 'entity', title: 'Entite' },
               { key: 'entityId', title: 'ID' }
             ]}
             data={audit}

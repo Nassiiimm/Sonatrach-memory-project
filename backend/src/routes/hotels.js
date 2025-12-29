@@ -22,8 +22,28 @@ const hotelSchema = Joi.object({
 });
 
 router.get('/', auth, async (req, res) => {
-  const hotels = await Hotel.find().sort({ city: 1, name: 1 });
-  res.json(hotels);
+  const { page = 1, limit = 100, city, q } = req.query;
+  const filter = {};
+
+  if (city) filter.city = city;
+  if (q) {
+    filter.$or = [
+      { name: { $regex: q, $options: 'i' } },
+      { city: { $regex: q, $options: 'i' } },
+      { code: { $regex: q, $options: 'i' } }
+    ];
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [items, total] = await Promise.all([
+    Hotel.find(filter)
+      .sort({ city: 1, name: 1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    Hotel.countDocuments(filter)
+  ]);
+
+  res.json({ data: items, total, page: Number(page), limit: Number(limit) });
 });
 
 router.post('/', auth, requireRole(['ADMIN']), async (req, res) => {

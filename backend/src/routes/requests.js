@@ -6,11 +6,19 @@ const Joi = require('joi');
 const Request = require('../models/Request');
 const Audit = require('../models/Audit');
 const Hotel = require('../models/Hotel');
+const User = require('../models/User');
 const { auth, requireRole } = require('../middleware/auth');
 const STATUS = require('../constants/status');
 const { generateBCPdf, generateBCNumber } = require('../utils/pdfGenerator');
 const { storePdfBuffer, getPdfById } = require('../utils/gridfs');
 const { generateBCExcel } = require('../utils/excelExport');
+const {
+  notifyManagerNewRequest,
+  notifyEmployeeApproved,
+  notifyEmployeeRejected,
+  notifyRelexNewRequest,
+  notifyEmployeeReserved
+} = require('../utils/email');
 
 const router = express.Router();
 
@@ -49,7 +57,7 @@ const createSchema = Joi.object({
 });
 
 router.get('/', auth, async (req, res) => {
-  const { status, q, page = 1, limit = 50 } = req.query;
+  const { status, q, page = 1, limit = 50, startDate, endDate } = req.query;
   const filter = {};
   if (status) filter.status = status;
   if (q) {
@@ -58,6 +66,11 @@ router.get('/', auth, async (req, res) => {
       { motif: { $regex: q, $options: 'i' } },
       { city: { $regex: q, $options: 'i' } }
     ];
+  }
+  if (startDate || endDate) {
+    filter.startDate = {};
+    if (startDate) filter.startDate.$gte = new Date(startDate);
+    if (endDate) filter.startDate.$lte = new Date(endDate);
   }
 
   // Filtrage par rôle
@@ -152,6 +165,24 @@ router.post('/', auth, requireRole(['EMPLOYE']), upload.array('attachments'), as
     by: req.user._id,
     metadata: { destination: request.destination, city: request.city }
   });
+
+  // Notify managers of the same region
+  try {
+    const managers = await User.find({
+      role: 'MANAGER',
+      regionAcronym: req.user.regionAcronym
+    }).select('email');
+
+    const populatedRequest = await Request.findById(request._id).populate('employee', 'name');
+
+    for (const manager of managers) {
+      if (manager.email) {
+        notifyManagerNewRequest(populatedRequest, manager.email).catch(console.error);
+      }
+    }
+  } catch (emailError) {
+    console.error('Error sending notification emails:', emailError);
+  }
 
   res.status(201).json(request);
 });
@@ -273,7 +304,7 @@ router.get('/finance/export-excel', auth, requireRole(['FINANCE', 'ADMIN']), asy
 // Manager: libère ou refuse l'employé, ne réserve rien
 router.patch('/:id/manager', auth, requireRole(['MANAGER']), async (req, res) => {
   const { approved, comment } = req.body;
-  const request = await Request.findById(req.params.id);
+  const request = await Request.findById(req.params.id).populate('employee', 'name email');
   if (!request) return res.status(404).json({ message: 'Demande introuvable' });
 
   // Vérification que la demande appartient à la région du manager
@@ -297,6 +328,32 @@ router.patch('/:id/manager', auth, requireRole(['MANAGER']), async (req, res) =>
     by: req.user._id,
     metadata: { comment, regionAcronym: request.regionAcronym }
   });
+
+  // Send email notifications
+  try {
+    const employeeEmail = request.employee?.email;
+
+    if (approved) {
+      // Notify employee of approval
+      if (employeeEmail) {
+        notifyEmployeeApproved(request, employeeEmail).catch(console.error);
+      }
+
+      // Notify Relex users
+      const relexUsers = await User.find({ role: 'RELEX' }).select('email');
+      const relexEmails = relexUsers.map(u => u.email).filter(Boolean);
+      if (relexEmails.length > 0) {
+        notifyRelexNewRequest(request, relexEmails).catch(console.error);
+      }
+    } else {
+      // Notify employee of rejection
+      if (employeeEmail) {
+        notifyEmployeeRejected(request, employeeEmail, comment).catch(console.error);
+      }
+    }
+  } catch (emailError) {
+    console.error('Error sending notification emails:', emailError);
+  }
 
   res.json(request);
 });
@@ -432,6 +489,16 @@ router.patch('/:id/relex', auth, requireRole(['RELEX']), async (req, res) => {
 
     // Repopuler l'hôtel pour la réponse
     await request.populate('relex.hotel');
+
+    // Notify employee of confirmed reservation
+    try {
+      const employeeEmail = request.employee?.email;
+      if (employeeEmail) {
+        notifyEmployeeReserved(request, employeeEmail, hotel, bcNumber).catch(console.error);
+      }
+    } catch (emailError) {
+      console.error('Error sending reservation notification:', emailError);
+    }
 
     res.json(request);
   } catch (error) {
