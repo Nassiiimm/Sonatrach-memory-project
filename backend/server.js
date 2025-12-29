@@ -79,8 +79,8 @@ app.get('/api/csrf-token', (req, res) => {
 
   res.cookie('csrf-token', token, {
     httpOnly: false, // Frontend needs to read it
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: true,
+    sameSite: 'none', // Required for cross-origin requests
     maxAge: 24 * 60 * 60 * 1000 // 24h
   });
 
