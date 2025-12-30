@@ -48,6 +48,64 @@ export default function Dashboard() {
   const reservees = rows.filter(r => r.status === 'RESERVEE').length;
   const refusees = rows.filter(r => r.status === 'REFUSEE').length;
 
+  // Labels et hints personnalisés selon le rôle
+  const getRoleLabels = () => {
+    switch (user?.role) {
+      case 'EMPLOYE':
+        return {
+          totalLabel: 'Mes demandes',
+          totalHint: 'Total de vos demandes',
+          pendingManagerLabel: 'En attente',
+          pendingManagerHint: 'Validation manager',
+          pendingRelexLabel: 'Validées',
+          pendingRelexHint: 'En cours de réservation',
+          subtitle: 'Suivi de vos demandes d\'hébergement'
+        };
+      case 'MANAGER':
+        return {
+          totalLabel: 'Demandes région',
+          totalHint: `Région ${user?.regionAcronym || ''}`,
+          pendingManagerLabel: 'À valider',
+          pendingManagerHint: 'En attente de votre décision',
+          pendingRelexLabel: 'Transmises Relex',
+          pendingRelexHint: 'Validées par vos soins',
+          subtitle: `Validation des demandes - Région ${user?.regionAcronym || ''}`
+        };
+      case 'RELEX':
+        return {
+          totalLabel: 'Total demandes',
+          totalHint: 'Toutes régions',
+          pendingManagerLabel: 'Attente Manager',
+          pendingManagerHint: 'Pas encore validées',
+          pendingRelexLabel: 'À réserver',
+          pendingRelexHint: 'En attente de votre traitement',
+          subtitle: 'Gestion des réservations hôtelières'
+        };
+      case 'FINANCE':
+        return {
+          totalLabel: 'Réservations',
+          totalHint: 'À facturer',
+          pendingManagerLabel: 'En traitement',
+          pendingManagerHint: 'Workflow en cours',
+          pendingRelexLabel: 'Attente Relex',
+          pendingRelexHint: 'Réservation en cours',
+          subtitle: 'Suivi des bons de commande et paiements'
+        };
+      default: // ADMIN
+        return {
+          totalLabel: 'Demandes totales',
+          totalHint: 'Toutes régions confondues',
+          pendingManagerLabel: 'Attente Manager',
+          pendingManagerHint: 'Validation hiérarchique',
+          pendingRelexLabel: 'Attente Relex',
+          pendingRelexHint: 'Réservation hôtel',
+          subtitle: 'Vue d\'ensemble du système'
+        };
+    }
+  };
+
+  const labels = getRoleLabels();
+
   const getStatusLabel = (status) => {
     switch (status) {
       case 'EN_ATTENTE_MANAGER': return 'Attente Manager';
@@ -79,44 +137,44 @@ export default function Dashboard() {
             )}
           </div>
           <p className="page-subtitle">
-            Suivi des demandes d'hebergement - validation manager et reservation Relex
+            {labels.subtitle}
           </p>
         </div>
 
         {/* KPI Grid */}
         <div className="grid-kpi" style={{ marginBottom: '1.5rem' }}>
           <KPI
-            label="Demandes totales"
+            label={labels.totalLabel}
             value={loading ? '-' : total}
-            hint="Periode courante"
+            hint={labels.totalHint}
             variant="total"
             icon={FileText}
           />
           <KPI
-            label="Attente Manager"
+            label={labels.pendingManagerLabel}
             value={loading ? '-' : pendingManager}
-            hint="Validation hierarchique"
+            hint={labels.pendingManagerHint}
             variant="pending"
             icon={Clock}
           />
           <KPI
-            label="Attente Relex"
+            label={labels.pendingRelexLabel}
             value={loading ? '-' : pendingRelex}
-            hint="Reservation hotel"
+            hint={labels.pendingRelexHint}
             variant="pending"
             icon={Building2}
           />
           <KPI
-            label="Reservees"
+            label="Réservées"
             value={loading ? '-' : reservees}
-            hint="Hebergement confirme"
+            hint="Hébergement confirmé"
             variant="success"
             icon={CheckCircle}
           />
           <KPI
-            label="Refusees"
+            label="Refusées"
             value={loading ? '-' : refusees}
-            hint="Non approuvees"
+            hint="Non approuvées"
             variant="error"
             icon={XCircle}
           />

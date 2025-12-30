@@ -31,7 +31,7 @@ export default function Nav() {
   const handleLogout = () => {
     logout();
     toast.success('Deconnexion reussie', {
-      description: 'A bientot sur StayFlow'
+      description: 'A bientot sur SGRH'
     });
   };
 
@@ -50,7 +50,7 @@ export default function Nav() {
         <div className="nav-left">
           <div className="nav-logo">
             <span className="nav-dot" />
-            <span>StayFlow</span>
+            <span>SGRH</span>
           </div>
           <div className="nav-links">
             {links

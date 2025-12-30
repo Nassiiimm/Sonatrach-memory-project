@@ -17,7 +17,7 @@ export default function Login() {
     try {
       await login(email, password);
       toast.success('Connexion réussie', {
-        description: 'Bienvenue sur StayFlow'
+        description: 'Bienvenue sur SGRH'
       });
       navigate('/');
     } catch (e) {
@@ -93,9 +93,9 @@ export default function Login() {
 
         {/* Footer */}
         <div className="login-footer">
-          <span>StayFlow</span>
+          <span>SGRH</span>
           <span className="separator">·</span>
-          <span>v4.0</span>
+          <span>v1.0</span>
         </div>
       </div>
     </div>

@@ -30,11 +30,11 @@ const getTransporter = () => {
 // Email templates
 const templates = {
   requestCreated: (data) => ({
-    subject: `[StayFlow] Nouvelle demande d'hebergement - ${data.destination}`,
+    subject: `[SGRH] Nouvelle demande d'hebergement - ${data.destination}`,
     html: `
       <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f97316; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">StayFlow - Sonatrach</h1>
+          <h1 style="margin: 0;">SGRH - Sonatrach</h1>
         </div>
         <div style="padding: 20px; background: #f9f9f9;">
           <h2 style="color: #333;">Nouvelle demande d'hebergement</h2>
@@ -57,18 +57,18 @@ const templates = {
           </p>
         </div>
         <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
-          Cet email a ete envoye automatiquement par StayFlow.
+          Cet email a ete envoye automatiquement par SGRH.
         </div>
       </div>
     `
   }),
 
   requestApproved: (data) => ({
-    subject: `[StayFlow] Demande approuvee - ${data.destination}`,
+    subject: `[SGRH] Demande approuvee - ${data.destination}`,
     html: `
       <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #22c55e; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">StayFlow - Sonatrach</h1>
+          <h1 style="margin: 0;">SGRH - Sonatrach</h1>
         </div>
         <div style="padding: 20px; background: #f9f9f9;">
           <h2 style="color: #22c55e;">Demande approuvee</h2>
@@ -91,18 +91,18 @@ const templates = {
           </p>
         </div>
         <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
-          Cet email a ete envoye automatiquement par StayFlow.
+          Cet email a ete envoye automatiquement par SGRH.
         </div>
       </div>
     `
   }),
 
   requestRejected: (data) => ({
-    subject: `[StayFlow] Demande refusee - ${data.destination}`,
+    subject: `[SGRH] Demande refusee - ${data.destination}`,
     html: `
       <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #ef4444; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">StayFlow - Sonatrach</h1>
+          <h1 style="margin: 0;">SGRH - Sonatrach</h1>
         </div>
         <div style="padding: 20px; background: #f9f9f9;">
           <h2 style="color: #ef4444;">Demande refusee</h2>
@@ -119,18 +119,18 @@ const templates = {
           <p>Pour toute question, veuillez contacter votre manager.</p>
         </div>
         <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
-          Cet email a ete envoye automatiquement par StayFlow.
+          Cet email a ete envoye automatiquement par SGRH.
         </div>
       </div>
     `
   }),
 
   requestReserved: (data) => ({
-    subject: `[StayFlow] Reservation confirmee - ${data.hotelName}`,
+    subject: `[SGRH] Reservation confirmee - ${data.hotelName}`,
     html: `
       <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f97316; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">StayFlow - Sonatrach</h1>
+          <h1 style="margin: 0;">SGRH - Sonatrach</h1>
         </div>
         <div style="padding: 20px; background: #f9f9f9;">
           <h2 style="color: #22c55e;">Reservation confirmee</h2>
@@ -153,18 +153,18 @@ const templates = {
           </p>
         </div>
         <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
-          Cet email a ete envoye automatiquement par StayFlow.
+          Cet email a ete envoye automatiquement par SGRH.
         </div>
       </div>
     `
   }),
 
   newRequestForRelex: (data) => ({
-    subject: `[StayFlow] Nouvelle demande a traiter - ${data.destination}`,
+    subject: `[SGRH] Nouvelle demande a traiter - ${data.destination}`,
     html: `
       <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f97316; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">StayFlow - Sonatrach</h1>
+          <h1 style="margin: 0;">SGRH - Sonatrach</h1>
         </div>
         <div style="padding: 20px; background: #f9f9f9;">
           <h2 style="color: #333;">Nouvelle demande a traiter</h2>
@@ -187,7 +187,7 @@ const templates = {
           </p>
         </div>
         <div style="padding: 15px; text-align: center; color: #666; font-size: 12px;">
-          Cet email a ete envoye automatiquement par StayFlow.
+          Cet email a ete envoye automatiquement par SGRH.
         </div>
       </div>
     `
@@ -218,7 +218,7 @@ const sendEmail = async (to, templateName, data) => {
     }
 
     await transport.sendMail({
-      from: process.env.SMTP_FROM || '"StayFlow Sonatrach" <noreply@sonatrach.dz>',
+      from: process.env.SMTP_FROM || '"SGRH Sonatrach" <noreply@sonatrach.dz>',
       to,
       subject,
       html
